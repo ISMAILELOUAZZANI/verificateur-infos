@@ -11,7 +11,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 import anthropic
 from anthropic import beta_tool
@@ -40,7 +40,15 @@ VERDICTS = {
     "inverifiable": "❔ INVÉRIFIABLE",
 }
 
-client = anthropic.Anthropic()  # lit ANTHROPIC_API_KEY dans l'environnement
+_client: anthropic.Anthropic | None = None
+
+
+def client_par_defaut() -> anthropic.Anthropic:
+    """Client créé à la première utilisation ; lit ANTHROPIC_API_KEY dans l'environnement."""
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic()
+    return _client
 
 
 class Verification:
@@ -79,8 +87,16 @@ class Verification:
         return rendre_verdict
 
 
-def verifier(affirmation: str) -> dict | None:
-    """Lance l'agent sur une affirmation et renvoie son verdict."""
+def verifier(
+    affirmation: str,
+    progression: Callable[[str], None] = print,
+    client: anthropic.Anthropic | None = None,
+) -> dict | None:
+    """Lance l'agent sur une affirmation et renvoie son verdict.
+
+    `progression` reçoit une ligne de texte à chaque recherche ou lecture de page.
+    """
+    client = client or client_par_defaut()
     verification = Verification()
     tools = [
         {"type": "web_search_20260209", "name": "web_search", "max_uses": 8},
@@ -113,12 +129,12 @@ def verifier(affirmation: str) -> dict | None:
 
             for block in message.content:
                 if block.type == "server_tool_use" and block.name == "web_search":
-                    print(f"  🔎 recherche : {block.input.get('query', '')}")
+                    progression(f"  🔎 recherche : {block.input.get('query', '')}")
                 elif block.type == "server_tool_use" and block.name == "web_fetch":
-                    print(f"  📄 lecture : {block.input.get('url', '')}")
+                    progression(f"  📄 lecture : {block.input.get('url', '')}")
 
             if message.stop_reason == "refusal":
-                print("La requête a été refusée par le modèle.")
+                progression("La requête a été refusée par le modèle.")
                 return None
 
         if dernier is None or dernier.stop_reason != "pause_turn":
@@ -132,15 +148,11 @@ def slug(texte: str, longueur: int = 50) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "-", texte).strip("-").lower()[:longueur] or "verification"
 
 
-def ecrire_rapport(affirmation: str, resultat: dict) -> Path:
-    """Écrit le rapport Markdown dans le dossier rapports/."""
-    maintenant = datetime.datetime.now()
-    DOSSIER_RAPPORTS.mkdir(exist_ok=True)
-    chemin = DOSSIER_RAPPORTS / f"{maintenant:%Y-%m-%d_%H%M}_{slug(affirmation)}.md"
-
+def rapport_markdown(affirmation: str, resultat: dict, maintenant: datetime.datetime) -> str:
+    """Construit le texte Markdown du rapport."""
     sources = "\n".join(f"- <{url}>" for url in resultat["sources"]) or "_Aucune source._"
     citation = "\n".join(f"> {ligne}" for ligne in affirmation.splitlines())
-    chemin.write_text(
+    return (
         f"# Vérification : {VERDICTS[resultat['verdict']]}\n\n"
         f"{citation}\n\n"
         f"**Confiance :** {resultat['confiance']} %  \n"
@@ -149,9 +161,20 @@ def ecrire_rapport(affirmation: str, resultat: dict) -> Path:
         f"## En bref\n\n{resultat['resume']}\n\n"
         f"## Analyse\n\n{resultat['explication']}\n\n"
         f"## Sources\n\n{sources}\n\n"
-        f"---\n_Rapport généré automatiquement par une IA : vérifiez les sources avant de partager._\n",
-        encoding="utf-8",
+        f"---\n_Rapport généré automatiquement par une IA : vérifiez les sources avant de partager._\n"
     )
+
+
+def nom_rapport(affirmation: str, maintenant: datetime.datetime) -> str:
+    return f"{maintenant:%Y-%m-%d_%H%M}_{slug(affirmation)}.md"
+
+
+def ecrire_rapport(affirmation: str, resultat: dict) -> Path:
+    """Écrit le rapport Markdown dans le dossier rapports/."""
+    maintenant = datetime.datetime.now()
+    DOSSIER_RAPPORTS.mkdir(exist_ok=True)
+    chemin = DOSSIER_RAPPORTS / nom_rapport(affirmation, maintenant)
+    chemin.write_text(rapport_markdown(affirmation, resultat, maintenant), encoding="utf-8")
     return chemin
 
 

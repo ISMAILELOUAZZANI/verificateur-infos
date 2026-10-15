@@ -39,6 +39,18 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ## Utilisation
 
+### 🌐 Interface web
+
+```bash
+streamlit run app.py
+```
+
+La page s'ouvre dans votre navigateur (http://localhost:8501). Collez une affirmation,
+cliquez sur **Vérifier**, suivez les recherches en direct, puis téléchargez le rapport.
+Si `ANTHROPIC_API_KEY` n'est pas définie, saisissez votre clé dans la barre latérale.
+
+### 💻 En ligne de commande
+
 ```bash
 python verificateur.py "La Grande Muraille de Chine est visible à l'œil nu depuis l'espace"
 python verificateur.py --fichier article.txt
@@ -65,6 +77,7 @@ Rapport complet : rapports/2026-10-16_1430_la-grande-muraille-de-chine-est-visib
 | Fichier | Rôle |
 |---|---|
 | `verificateur.py` | L'agent : boucle d'outils, recherche web, verdict, rapport |
+| `app.py` | Interface web (Streamlit) |
 | `requirements.txt` | Dépendances Python |
 | `rapports/` | Rapports générés (ignorés par git) |
 
