@@ -18,7 +18,7 @@ Construit avec [Claude](https://www.anthropic.com/claude) (modèle `claude-opus-
 Python 3.10 ou plus récent est nécessaire.
 
 ```bash
-git clone https://github.com/<votre-compte>/verificateur-infos.git
+git clone https://github.com/ISMAILELOUAZZANI/verificateur-infos.git
 cd verificateur-infos
 python -m venv .venv
 # Windows : .venv\Scripts\activate     macOS/Linux : source .venv/bin/activate
